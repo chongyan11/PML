@@ -1,0 +1,71 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we used data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The goal is to predict the manner in which they did the exercise, based on the "classe" variable in the training set. 
+
+Load CARET library, read in training and testing sets and set random number seed.
+``` {r caret}
+library(caret)
+trg <- read.csv(file = "~/Downloads/pml-training.csv", header = TRUE)
+val <- read.csv(file = "~/Downloads/pml-testing.csv", header = TRUE)
+set.seed(101)
+```
+
+From the entire dataset, keep only variables with acceleration information. Remove variables whose information is incomplete (i.e. with NA)
+``` {r}
+# Isolate variables with acceleration information, remove variance variables which are all NA
+varList <- grep("accel", colnames(trg))
+trg <- data.frame(trg[, varList], classe = trg$classe)
+val <- data.frame(val[, varList])
+navar <- grep("^var", colnames(trg))
+trg <- data.frame(trg[, -navar])
+val <- data.frame(val[, -navar])
+```
+
+Finally, only 15 variables remain. 
+From the training data set, further split into training and testing sets. 10% of the original training set data will not be used for model training. It will be used to assess whether the model created is adequate. 
+
+``` {r}
+# Further split trg into training set and test set. Actual test set used as validation set instead
+inTrain <- createDataPartition(trg$classe, p = 0.9, list = FALSE)
+training <- trg[inTrain, ]
+testing <- trg[-inTrain, ]
+```
+
+Cross validation will be performed on the training subset dataset. k = 10, to strike a balance between bias and overfitting. 
+``` {r}
+# Set train control
+tr_ctrl <- trainControl(method = "cv", number = 10)
+```
+
+Train simple classification tree. 
+``` {r}
+# Train simple classification tree
+dt_model <- train(classe ~ ., data = training, method = "rpart", trControl = tr_ctrl)
+confusionMatrix(testing$classe, predict(dt_model, testing))
+```
+Accuracy is not that good.
+
+Train random forest.
+
+``` {r}
+# Train random forest
+rf_model <- train(classe ~ ., data = training, method = "rf", trControl = tr_ctrl)
+confusionMatrix(testing$classe, predict(rf_model, testing))
+```
+Accuracy is quite good, around 95%.
+
+Train boosting model.
+``` {r}
+# Train boosting model
+gbm_model <- train(classe ~ ., data = training, method = "gbm", trControl = tr_ctrl)
+confusionMatrix(testing$classe, predict(gbm_model, testing))
+```
+Accuracy is good, but not as good as random forest.
+Hence, random forest is chosen. Expected out of sample error is 5%. 
